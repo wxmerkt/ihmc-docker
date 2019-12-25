@@ -39,49 +39,44 @@ RUN echo "auth requisite pam_deny.so" >> /etc/pam.d/su && \
     /bin/bash -c 'echo -e "password\npassword" | passwd $NB_USER' && \
     usermod -aG adm,sudo,dialout,plugdev val && \
     fix-permissions /home/$NB_USER 
-    
 
 USER $NB_UID
-
 RUN /bin/bash -c ". /opt/ros/kinetic/setup.bash && rosdep update"
-
 RUN mkdir -p /home/$NB_USER/catkin_ws/src
-
 RUN echo "source /opt/ros/kinetic/setup.bash" >> /home/$NB_USER/.bashrc && \
-    cd /home/$NB_USER/catkin_ws/src && \
-    /bin/bash -c ". /opt/ros/kinetic/setup.bash && catkin init && catkin config --install" && \
-    git clone https://github.com/ihmcrobotics/ihmc_ros_core.git --branch release/0.10.0 && \
-    git clone https://github.com/openhumanoids/ihmc_valkyrie_ros.git --branch vi-local-0.10.0 && \
-    git clone https://github.com/ipab-slmc/val_description.git --branch uoe_december_2019 && \
-    git clone https://github.com/ihmcrobotics/ihmc-ros-control.git --branch develop
+    cd /home/$NB_USER/catkin_ws/ && \
+    /bin/bash -c ". /opt/ros/kinetic/setup.bash && catkin init && catkin config --install" && cd src && \
+    git clone https://github.com/ihmcrobotics/ihmc_ros_core.git --depth 1 --branch release/0.10.0 && \
+    git clone https://github.com/openhumanoids/ihmc_valkyrie_ros.git --depth 1 --branch vi-local-0.10.0 && \
+    # cannot shallow clone val_description due to setup.py
+    git clone https://github.com/ipab-slmc/val_description.git --branch uoe_december_2019 && \ 
+    git clone https://github.com/ihmcrobotics/ihmc-ros-control.git --depth 1 --branch develop
 
 USER root
 RUN apt-get update && /bin/bash -c ". /opt/ros/kinetic/setup.bash && rosdep install --from-path /home/$NB_USER/catkin_ws/src -iy" && \
     rm -rf /var/lib/apt/lists/*
-USER $NB_UID
 
+USER $NB_UID
 RUN cd /home/$NB_USER/catkin_ws && \
     /bin/bash -c ". /opt/ros/kinetic/setup.bash && catkin config --install && catkin build" && \
     rm -rf /home/$NB_USER/catkin_ws/build && \
     echo "source /home/$NB_USER/catkin_ws/install/setup.bash" >> /home/$NB_USER/.bashrc
 
-RUN rm -rf /home/$NB_USER/catkin_ws/devel
+RUN rm -rf /home/$NB_USER/catkin_ws/devel /home/$NB_USER/catkin_ws/build /home/$NB_USER/catkin_ws/logs
 
+# TODO: Generate these with a gradle script
 RUN wget https://terminator.robots.inf.ed.ac.uk/public/maven_local.zip -q -O /home/$NB_USER/maven_local.zip && \
     unzip -d /home/$NB_USER /home/$NB_USER/maven_local.zip && \
     rm /home/$NB_USER/maven_local.zip
-
 RUN fix-permissions /home/$NB_USER
 
 RUN cd /home/$NB_USER/catkin_ws && \
     /bin/bash -c ". /opt/ros/kinetic/setup.bash && . /home/$NB_USER/catkin_ws/install/setup.bash && roslaunch ihmc_valkyrie_ros valkyrie_warmup_gradle_cache.launch"
 
 RUN mkdir -p /home/$NB_USER/.ihmc
-
 ADD scripts/IHMCNetworkParameters.ini /home/$NB_USER/.ihmc
 
 USER root
-
 WORKDIR /home/$NB_USER
 
 ENV SHELL=/bin/bash
